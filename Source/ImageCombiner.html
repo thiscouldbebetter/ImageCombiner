@@ -4,66 +4,142 @@
 
 <div id="divUI">
 
-	<h3>Image Combiner</h3>
+	<h3>Image Combiner/Splitter</h3>
 
-	<p>Upload one or more images and click the button to combine them into a single image and download them.</p>
+	<p>
+		Upload one or more images and specify the size of the Processed file in tiles. 
+		Then click the Combine button to combine them into a single image,
+		or the Split button to split them.  In either case, the processed images
+		will then be downloaded.</p>
 
 	<label>Image File to Upload:</label>
 	<br />
 	<input type="file" multiple="true" onchange="inputImageFileToUpload_Changed(this);"></input>
+	<br />
+
+	<label>Images Uploaded So Far:</label>
 	<div id="divImagesUploaded"></div>
 
-	<label>Images per Row:</label>
-	<br />
-	<input id="inputImagesPerRow" type="number"></input>
-	<br />
-
-	<button onclick="buttonRenderAsSingleImage_Clicked();">Render As Single Image</button>
-	<button onclick="buttonDownloadAsSingleImage_Clicked();">Download As Single Image</button>
+	<label>Combined Image Size in Tiles:</label>
+	<label>X:</label>
+	<input id="inputImageCombinedSizeInTilesX" type="number"></input>
+	<label>Y:</label>
+	<input id="inputImageCombinedSizeInTilesY" type="number"></input>
 	<br />
 
-	<label>Combined Image:</label>
-	<div id="divImageCombined"></div>
+	<label>Operation to Perform:</label>
+	<select id="selectOperationToPerform">
+		<option>Combine</option>
+		<option>Split</option>
+	</select>
+	<button onclick="buttonProcessAndDraw_Clicked();">Process and Draw</button>
+	<br />
+
+	<label>Processed Images:</label>
+	<div id="divImagesProcessed"></div>
+	
+	<button onclick="buttonDownload_Clicked();">Download Processed Images</button>
 </div>
 
 <script type="text/javascript">
 
 // UI event handlers.
 
-function buttonDownloadAsSingleImage_Clicked()
+function buttonDownload_Clicked()
 {
 	var d = document;
 
-	this.buttonRenderAsSingleImage_Clicked();
+	var divImagesProcessed = d.getElementById("divImagesProcessed");
+	var imagesToDownloadAsCanvases = divImagesProcessed.children;
 
-	var divImageCombined = d.getElementById("divImageCombined");
-	var imageCombinedAsCanvas = divImageCombined.children[0];
-	if (imageCombinedAsCanvas != null)
+	if (imagesToDownloadAsCanvases.length == 0)
 	{
-		var imageCombinedAsDataUrl =
-			imageCombinedAsCanvas.toDataURL("image/png");
-		var imageCombinedAsLink = d.createElement("a");
-		imageCombinedAsLink.href = imageCombinedAsDataUrl;
-		imageCombinedAsLink.download = "Combined.png";
-		imageCombinedAsLink.click();
+		alert("No images to download yet!");
+	}
+	else
+	{
+		var imageCount = imagesToDownloadAsCanvases.length;
+		for (var i = 0; i < imageCount; i++)
+		{
+			var imageProcessedAsCanvas = imagesToDownloadAsCanvases[i];
+			var imageProcessedAsDataUrl =
+				imageProcessedAsCanvas.toDataURL("image/png");
+			var imageProcessedAsLink = d.createElement("a");
+			imageProcessedAsLink.href = imageProcessedAsDataUrl;
+			imageProcessedAsLink.download =
+				"Processed" + (imageCount == 0 ? "" : "" + i) + ".png";
+			imageProcessedAsLink.click();
+		}
 	}
 }
 
-function buttonRenderAsSingleImage_Clicked()
+function buttonProcessAndDraw_Clicked()
 {
 	var d = document;
-	var divImagesUploaded = d.getElementById("divImagesUploaded");
-	var inputImagesPerRow = d.getElementById("inputImagesPerRow");
+	var divImagesUploaded =
+		d.getElementById("divImagesUploaded");
+	var inputImageCombinedSizeInTilesX =
+		d.getElementById("inputImageCombinedSizeInTilesX");
+	var inputImageCombinedSizeInTilesY =
+		d.getElementById("inputImageCombinedSizeInTilesY");
 
 	var imagesAsImgElements = divImagesUploaded.children;
 
 	var imageCount = imagesAsImgElements.length;
 
-	var imagesPerRow = parseInt(inputImagesPerRow.value);
-	if (isNaN(imagesPerRow))
+	var imageCombinedSizeInTilesX =
+		parseInt(inputImageCombinedSizeInTilesX.value);
+	var imageCombinedSizeInTilesY =
+		parseInt(inputImageCombinedSizeInTilesY.value);
+
+	if (isNaN(imageCombinedSizeInTilesX))
 	{
-		imagesPerRow = imageCount;
+		imageCombinedSizeInTilesX = imageCount;
+		imageCombinedSizeInTilesY = 1;
 	}
+	else if (isNaN(imageCombinedSizeInTilesY))
+	{
+		imageCombinedSizeInTilesX = imageCount;
+		imageCombinedSizeInTilesY =
+			Math.ceil(imageCount / imageCombinedSizeInTilesX);
+	}
+
+	var selectOperationToPerform =
+		d.getElementById("selectOperationToPerform");
+	var operationToPerform = selectOperationToPerform.value;
+
+	if (operationToPerform == "Combine")
+	{
+		combine
+		(
+			imagesAsImgElements,
+			imageCombinedSizeInTilesX,
+			imageCombinedSizeInTilesY
+		);
+	}
+	else if (operationToPerform == "Split")
+	{
+		split
+		(
+			imagesAsImgElements[0],
+			imageCombinedSizeInTilesX,
+			imageCombinedSizeInTilesY
+		);
+	}
+	else
+	{
+		throw new Error("Unrecognized operation: " + operationToPerform);
+	}
+}
+
+function combine
+(
+	imagesAsImgElements,
+	imageCombinedSizeInTilesX,
+	imageCombinedSizeInTilesY
+)
+{
+	var imageCount = imagesAsImgElements.length;
 
 	var imageWidthMaxSoFar = 0;
 	var imageHeightMaxSoFar = 0;
@@ -81,9 +157,12 @@ function buttonRenderAsSingleImage_Clicked()
 		}
 	}
 
-	var rowCount = Math.ceil(imageCount / imagesPerRow);
-	var combinedWidth = imageWidthMaxSoFar * imagesPerRow;
-	var combinedHeight = imageHeightMaxSoFar * rowCount;
+	var combinedWidth =
+		imageWidthMaxSoFar * imageCombinedSizeInTilesX;
+	var combinedHeight =
+		imageHeightMaxSoFar * imageCombinedSizeInTilesY;
+
+	var d = document;
 
 	var imageCombinedAsCanvas = d.createElement("canvas");
 	imageCombinedAsCanvas.width = combinedWidth;
@@ -109,9 +188,51 @@ function buttonRenderAsSingleImage_Clicked()
 		);
 	}
 
-	var divImageCombined = d.getElementById("divImageCombined");
-	divImageCombined.innerHTML = "";
-	divImageCombined.appendChild(imageCombinedAsCanvas);
+	var divImagesProcessed = d.getElementById("divImagesProcessed");
+	divImagesProcessed.innerHTML = "";
+	divImagesProcessed.appendChild(imageCombinedAsCanvas);
+}
+
+function split
+(
+	imageCombinedAsImgElement,
+	imageCombinedSizeInTilesX,
+	imageCombinedSizeInTilesY
+)
+{
+	var d = document;
+
+	var combinedWidth = imageCombinedAsImgElement.width;
+	var combinedHeight = imageCombinedAsImgElement.height;
+
+	var tileWidth = combinedWidth / imageCombinedSizeInTilesX;
+	var tileHeight = combinedHeight / imageCombinedSizeInTilesY;
+
+	var divImagesProcessed = d.getElementById("divImagesProcessed");
+	divImagesProcessed.innerHTML = "";
+
+	for (var y = 0; y < imageCombinedSizeInTilesY; y++)
+	{
+		for (var x = 0; x < imageCombinedSizeInTilesX; x++)
+		{
+			var imageForTileAsCanvas = d.createElement("canvas");
+			imageForTileAsCanvas.width = tileWidth;
+			imageForTileAsCanvas.height = tileHeight;
+
+			var graphics = imageForTileAsCanvas.getContext("2d");
+			
+			graphics.drawImage
+			(
+				imageCombinedAsImgElement,
+				x * tileWidth, y * tileHeight, // sourcePos
+				tileWidth, tileHeight, // sourceSize
+				0, 0, // destinationPos
+				tileWidth, tileHeight // destinationSize
+			);
+
+			divImagesProcessed.appendChild(imageForTileAsCanvas);
+		}
+	}
 }
 
 function inputImageFileToUpload_Changed(inputImageFileToUpload)
@@ -135,6 +256,18 @@ function inputImageFileToUpload_Changed(inputImageFileToUpload)
 				var divImagesUploaded =
 					d.getElementById("divImagesUploaded");
 				divImagesUploaded.appendChild(imageUploadedAsImgElement);
+
+				var selectOperationToPerform =
+					d.getElementById("selectOperationToPerform");
+				var imageCount = divImagesUploaded.children.length;
+				if (imageCount < 2)
+				{
+					selectOperationToPerform.value = "Split";
+				}
+				else
+				{
+					selectOperationToPerform.value = "Combine";
+				}
 			};
 			fileReader.readAsDataURL(file);
 		}
