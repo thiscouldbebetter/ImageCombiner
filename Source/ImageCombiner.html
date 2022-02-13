@@ -174,8 +174,8 @@ function combine
 	{
 		var imageAsImgElement = imagesAsImgElements[i];
 
-		var drawPosInImagesX = i % imagesPerRow;
-		var drawPosInImagesY = Math.floor(i / imagesPerRow);
+		var drawPosInImagesX = i % imageCombinedSizeInTilesX;
+		var drawPosInImagesY = Math.floor(i / imageCombinedSizeInTilesX);
 
 		var drawPosInPixelsX =
 			drawPosInImagesX * imageWidthMaxSoFar;
