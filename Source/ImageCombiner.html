@@ -8,13 +8,21 @@
 
 	<p>
 		Upload one or more images and specify the size of the Processed file in tiles. 
-		Then click the Combine button to combine them into a single image,
-		or the Split button to split them.  In either case, the processed images
-		will then be downloaded.</p>
+		Then select the Combine operation to combine them into a single image,
+		or the Split operation to split them, then click the "Process and Draw" button.
+		In either case, the processed images will then be downloaded. 
+		(Be aware that some browsers limit the number of files
+		that may be downloaded at once.  The "Download As TAR" button
+		consolidates the files into a single file to get around such restrictions.)
+	</p>
 
 	<label>Image File to Upload:</label>
 	<br />
-	<input type="file" multiple="true" onchange="inputImageFileToUpload_Changed(this);"></input>
+	<input
+		type="file"
+		multiple="true"
+		onchange="inputImageFileToUpload_Changed(this);"
+	></input>
 	<br />
 
 	<label>Images Uploaded So Far:</label>
@@ -37,20 +45,61 @@
 
 	<label>Processed Images:</label>
 	<div id="divImagesProcessed"></div>
-	
-	<button onclick="buttonDownload_Clicked();">Download Processed Images</button>
+
+	<label>Prefix for Downloaded File(s):</label>
+	<input id="inputProcessedFileNamePrefix" value="Processed"></input>
+	<button onclick="buttonDownloadAsImageFiles_Clicked();">Download Processed Images</button>
+	<button onclick="buttonDownloadAsTarFile_Clicked();">As TAR</button>
+	<br />
+
 </div>
+
+<script type="text/javascript" src="TarFileExplorer/Source/TarFile/TarFile.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/TarFile/TarFileEntry.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/TarFile/TarFileEntryHeader.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/TarFile/TarFileTypeFlag.js"></script>
+
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/ArrayHelper.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/ByteHelper.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/ByteStream.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/DOMDisplayHelper.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/FileHelper.js"></script>
+<script type="text/javascript" src="TarFileExplorer/Source/Utility/StringHelper.js"></script>
 
 <script type="text/javascript">
 
 // UI event handlers.
 
-function buttonDownload_Clicked()
+function buttonDownloadAsImageFiles_Clicked()
+{
+	var downloadAsTarFileNotImageFiles = false;
+	download(downloadAsTarFileNotImageFiles);
+}
+
+function buttonDownloadAsTarFile_Clicked()
+{
+	var downloadAsTarFileNotImageFiles = true;
+	download(downloadAsTarFileNotImageFiles);
+}
+
+function download(downloadAsTarFileNotImageFiles)
 {
 	var d = document;
 
-	var divImagesProcessed = d.getElementById("divImagesProcessed");
-	var imagesToDownloadAsCanvases = divImagesProcessed.children;
+	var divImagesProcessed =
+		d.getElementById("divImagesProcessed");
+	var imagesToDownloadAsCanvases =
+		divImagesProcessed.children;
+
+	var inputProcessedFileNamePrefix =
+		d.getElementById("inputProcessedFileNamePrefix");
+	var imageProcessedFileNamePrefix =
+		inputProcessedFileNamePrefix.value;
+
+	var TarFile = ThisCouldBeBetter.TarFileExplorer.TarFile;
+	var TarFileEntry = ThisCouldBeBetter.TarFileExplorer.TarFileEntry;
+
+	var imagesProcessedAsTarFileEntries = [];
 
 	if (imagesToDownloadAsCanvases.length == 0)
 	{
@@ -59,18 +108,63 @@ function buttonDownload_Clicked()
 	else
 	{
 		var imageCount = imagesToDownloadAsCanvases.length;
+
+		// todo
+		// Some browsers now implicitly limit
+		// the number of downloaded files to, say, 10.
+
 		for (var i = 0; i < imageCount; i++)
 		{
 			var imageProcessedAsCanvas = imagesToDownloadAsCanvases[i];
 			var imageProcessedAsDataUrl =
 				imageProcessedAsCanvas.toDataURL("image/png");
-			var imageProcessedAsLink = d.createElement("a");
-			imageProcessedAsLink.href = imageProcessedAsDataUrl;
-			imageProcessedAsLink.download =
-				"Processed" + (imageCount == 0 ? "" : "" + i) + ".png";
-			imageProcessedAsLink.click();
+			var imageProcessedFileName =
+				imageProcessedFileNamePrefix
+				+ (imageCount == 0 ? "" : "" + i)
+				+ ".png";
+
+			if (downloadAsTarFileNotImageFiles)
+			{
+				var imageProcessedAsBase64 =
+					imageProcessedAsDataUrl.split("data:image/png;base64,")[1];
+				var imageProcessedAsBinaryString =
+					atob(imageProcessedAsBase64);
+				var imageProcessedAsBinaryStringChars =
+					imageProcessedAsBinaryString.split("");
+				var imageProcessedAsBytes =
+					imageProcessedAsBinaryStringChars.map(x => x.charCodeAt(0));
+				var imageProcessedAsTarFileEntry = TarFileEntry.fileNew
+				(
+					imageProcessedFileName,
+					imageProcessedAsBytes
+				);
+				imagesProcessedAsTarFileEntries.push
+				(
+					imageProcessedAsTarFileEntry
+				);
+			}
+			else
+			{
+				var imageProcessedAsLink = d.createElement("a");
+				imageProcessedAsLink.href = imageProcessedAsDataUrl;
+				imageProcessedAsLink.download =
+					imageProcessedFileName;
+				imageProcessedAsLink.click();
+			}
+
+		} // end for each processed image
+
+		if (downloadAsTarFileNotImageFiles)
+		{
+			var imagesProcessedAsTarFile = new TarFile
+			(
+				imageProcessedFileNamePrefix + ".png.tar",
+				imagesProcessedAsTarFileEntries
+			);
+			imagesProcessedAsTarFile.download();
 		}
-	}
+
+	} // end if image count == 0 else
 }
 
 function buttonProcessAndDraw_Clicked()
@@ -220,7 +314,7 @@ function split
 			imageForTileAsCanvas.height = tileHeight;
 
 			var graphics = imageForTileAsCanvas.getContext("2d");
-			
+
 			graphics.drawImage
 			(
 				imageCombinedAsImgElement,
